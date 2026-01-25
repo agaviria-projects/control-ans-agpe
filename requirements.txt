@@ -1,0 +1,8 @@
+pandas
+numpy
+openpyxl
+holidays
+pyyaml
+folium
+tkcalendar
+

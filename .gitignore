@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Excel temporales
+~$*.xlsx
+~$*.xlsm
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Opcional: datos grandes si luego decides excluirlos
+# data_clean/*.xlsx

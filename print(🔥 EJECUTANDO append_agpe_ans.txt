@@ -1,0 +1,731 @@
+print("🔥 EJECUTANDO append_agpe_ans.py REAL 🔥")
+
+from pathlib import Path
+import pandas as pd
+import numpy as np
+from openpyxl import load_workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from datetime import datetime, date
+from pandas.tseries.offsets import CustomBusinessDay
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import PatternFill
+from openpyxl.formula.translate import Translator
+
+
+# ------------------------------------------------------------
+# CONFIGURACIÓN DE CALENDARIO SIN DIAS FESTIVOS (ANS)
+# ------------------------------------------------------------
+WEEKMASK = "1111100"  # lunes a viernes
+
+FESTIVOS = np.array([
+    "2025-01-01","2025-01-06","2025-03-24","2025-04-17","2025-04-18",
+    "2025-05-01","2025-05-26","2025-06-16","2025-06-23","2025-07-07",
+    "2025-08-07","2025-08-18","2025-10-13","2025-11-03","2025-11-17",
+    "2025-12-08","2025-12-25",
+    "2026-01-01","2026-01-12","2026-03-23","2026-04-02","2026-04-03",
+    "2026-05-01","2026-05-18","2026-06-08","2026-06-15","2026-06-29",
+    "2026-07-20","2026-08-07","2026-08-17","2026-10-12","2026-11-02",
+    "2026-11-16","2026-12-08","2026-12-25"
+], dtype="datetime64[D]")
+
+def convertir_a_tabla_excel(ruta_excel, nombre_tabla="tbl_AGPE_ANS"):
+    wb = load_workbook(ruta_excel)
+    ws = wb.active
+
+    max_fila = ws.max_row
+    max_col = ws.max_column
+    letra_col_final = ws.cell(row=1, column=max_col).column_letter
+    rango = f"A1:{letra_col_final}{max_fila}"
+
+    if nombre_tabla in ws.tables:
+        # ✅ La tabla ya existe → solo actualizamos su rango
+        ws.tables[nombre_tabla].ref = rango
+    else:
+        # ✅ La tabla NO existe → la creamos
+        tabla = Table(displayName=nombre_tabla, ref=rango)
+        estilo = TableStyleInfo(
+            name="TableStyleMedium9",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        tabla.tableStyleInfo = estilo
+        ws.add_table(tabla)
+
+    wb.save(ruta_excel)
+    wb.close()
+
+def ajustar_ancho_columnas(ruta_excel, ancho_max=45):
+    wb = load_workbook(ruta_excel)
+    ws = wb.active
+
+    for col in ws.columns:
+        max_length = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_length = max(max_length, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_length + 2, ancho_max)
+    wb.save(ruta_excel)
+    wb.close()
+
+def aplicar_formato_condicional_ans(ruta_excel):
+    wb = load_workbook(ruta_excel)
+    ws = wb.active
+
+    # Buscar columna ESTADO_ANS
+    col_estado = None
+    for idx, cell in enumerate(ws[1], start=1):
+        if cell.value == "ESTADO_ANS":
+            col_estado = idx
+            break
+
+    if not col_estado:
+        wb.close()
+        return
+
+    col = ws.cell(row=1, column=col_estado).column_letter
+    rango = f"{col}2:{col}{ws.max_row}"
+
+    ws.conditional_formatting._cf_rules.clear()
+
+    # 🟢 A TIEMPO
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'{col}2="A TIEMPO"'],
+            fill=PatternFill("solid", fgColor="FFC6EFCE"),
+            stopIfTrue=True
+        )
+    )
+
+    # 🔴 VENCIDO
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'{col}2="VENCIDO"'],
+            fill=PatternFill("solid", fgColor="FFFFC7CE"),
+            stopIfTrue=True
+        )
+    )
+
+    # 🟠 ALERTA 0 DÍAS (antes que ALERTA)
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'{col}2="ALERTA 0 DÍAS"'],
+            fill=PatternFill("solid", fgColor="FFF4B084"),
+            stopIfTrue=True
+        )
+    )
+
+    # 🟡 ALERTA
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'{col}2="ALERTA"'],
+            fill=PatternFill("solid", fgColor="FFFFEB9C"),
+            stopIfTrue=True
+        )
+    )
+
+    wb.save(ruta_excel)
+    wb.close()
+
+
+def append_agpe_ans():
+    print("➡️ Iniciando append a AGPE_ANS")
+
+    base_dir = Path(__file__).resolve().parents[2]
+    ruta_clean = base_dir / "data_clean" / "AGPE_CLEAN.xlsx"
+    ruta_visitas = base_dir / "data_clean" / "PLANTILLA_PRIMER VISITAS.xlsm"
+    ruta_ans = base_dir / "data_clean" / "AGPE_ANS.xlsm"
+
+    if not ruta_clean.exists():
+         raise FileNotFoundError("❌ No existe AGPE_ANS.xlsm")
+    if not ruta_visitas.exists():
+        raise FileNotFoundError("❌ No existe PLANTILLA_PRIMER VISITAS.xlsm")
+    if not ruta_ans.exists():
+        raise FileNotFoundError("❌ No existe AGPE_ANS.xlsx")
+    # ======================================================
+    # Inicializar dataframes de control (SIEMPRE existen)
+    # ======================================================
+    df_clean_datos = pd.DataFrame()
+    df_visitas_datos = pd.DataFrame()
+
+
+    # =========================
+    # AGPE_CLEAN
+    # =========================
+    df_clean = pd.read_excel(ruta_clean, dtype=str)
+
+    df_clean.columns = (
+        df_clean.columns.astype(str)
+        .str.strip()
+        .str.upper()
+        .str.replace(" ", "_", regex=False)
+    )
+
+    # --------------------------------------------------
+    # 🔁 Mapeo semántico TIPO_MEDIDOR desde AGPE_CLEAN
+    # --------------------------------------------------
+    mapeo_tipo_medidor = {
+            "TIPO_MEDIDOR": "TIPO_MEDIDOR",
+            "TIPO_MEDIDOR_": "TIPO_MEDIDOR",
+            "TIPO_DE_MEDIDOR": "TIPO_MEDIDOR",
+            "MEDIDOR": "TIPO_MEDIDOR",
+    }  
+
+    df_clean = df_clean.rename(
+        columns={k: v for k, v in mapeo_tipo_medidor.items() if k in df_clean.columns}
+    )  
+
+    columnas_obligatorias = [
+        "PEDIDO",
+        "DIRECCION",
+        "MUNICIPIO",
+        "CLIENTE",
+        "SUBZONA",
+        "ACTIVIDAD",
+        "DETALLE_VISITA",
+        "COORDENADAX",
+        "COORDENADAY",
+        "URBANO_RURAL",
+        "FECHA_CAMBIO_ESTADO",
+    ]
+
+    if "TIPO_MEDIDOR" not in df_clean.columns:
+         df_clean["TIPO_MEDIDOR"] = ""
+
+    # ======================================================
+    # 🔁 MAPEOS SEMÁNTICOS DESDE AGPE_CLEAN
+    # ======================================================
+    mapeo_columnas = {
+        "NOMBRE_CLIENTE": "CLIENTE",
+        "TIPO_DIRECCIÓN": "URBANO_RURAL",
+        "URBANO_RURAL": "URBANO_RURAL",
+        "URBANO/RURAL": "URBANO_RURAL",
+        "TIPO_DIRECCION_URBANO_RURAL": "URBANO_RURAL",
+        "FECHA_INICIO_ANS": "FECHA_CAMBIO_ESTADO",
+    }
+    df_clean = df_clean.rename(
+        columns={k: v for k, v in mapeo_columnas.items() if k in df_clean.columns}
+    )
+
+    faltantes = [c for c in columnas_obligatorias if c not in df_clean.columns]
+    if faltantes:
+        raise ValueError(f"❌ Columnas faltantes en AGPE_CLEAN: {faltantes}")
+
+    df_clean["PEDIDO"] = df_clean["PEDIDO"].str.strip().str.upper()
+    df_clean["DIRECCION"] = df_clean["DIRECCION"].str.strip().str.lstrip("'")
+    df_clean["SUBZONA"] = (
+        df_clean["SUBZONA"]
+        .str.strip()
+        .str.upper()
+        .replace(
+            {
+                "METROPOLITANA SUR": "METROPOLITANA",
+                "METROPOLITANA-SUR": "METROPOLITANA",
+                "METROPOLITANA  SUR": "METROPOLITANA",
+            }
+        )
+    )
+    df_clean["URBANO_RURAL"] = df_clean["URBANO_RURAL"].str.strip().str.upper()
+    df_clean["DETALLE_VISITA"] = df_clean["DETALLE_VISITA"].str.strip().str.upper()
+
+    df_clean["TIPO_VISITA"] = df_clean["ACTIVIDAD"].apply(
+        lambda x: "C09" if str(x).strip().upper() == "ACVIS" else "C07"
+    )
+    # ======================================================
+    # 🔎 VALIDAR SI AGPE_CLEAN TIENE DATOS REALES
+    # ======================================================
+    df_clean_datos = df_clean[
+        df_clean["PEDIDO"].notna() & (df_clean["PEDIDO"].str.strip() != "")
+    ]
+    
+    nuevas_clean = pd.DataFrame(
+        {
+            "PEDIDO": df_clean["PEDIDO"],
+            "DIRECCION": df_clean["DIRECCION"],
+            "MUNICIPIO": df_clean["MUNICIPIO"],
+            "CLIENTE": df_clean["CLIENTE"],
+            "SUBZONA": df_clean["SUBZONA"],
+            "PROMOTOR": "",
+            "CELULAR": "",
+            "FECHA_ATENCION": "",
+            "HORA_VISITA": "",
+            "REVISOR": "",
+            "TIPO_VISITA": df_clean["TIPO_VISITA"],
+            "OBSERVACION": "",
+            "FECHA_CIERRE_FENIX": "",
+            "POTENCIA_AC_KW": "",
+            "DETALLE_VISITA": df_clean["DETALLE_VISITA"],
+            "COORDENADAX": df_clean["COORDENADAX"],
+            "COORDENADAY": df_clean["COORDENADAY"],
+            "TIPO_MEDIDOR": df_clean["TIPO_MEDIDOR"],
+            "URBANO_RURAL": df_clean["URBANO_RURAL"],
+            "FECHA_CAMBIO_ESTADO": df_clean["FECHA_CAMBIO_ESTADO"],
+            "FECHA_LIMITE_ANS": "",
+            "DIAS_RESTANTES": "",
+        }
+    )
+
+    # =========================
+    # PRIMER_VISITAS
+    # =========================
+    df_visitas = pd.read_excel(ruta_visitas, sheet_name=0, dtype=str)
+
+    df_visitas.columns = (
+        df_visitas.columns.astype(str)
+        .str.strip()
+        .str.upper()
+        .str.replace(" ", "_", regex=False)
+        .str.replace("Á", "A")
+        .str.replace("É", "E")
+        .str.replace("Í", "I")
+        .str.replace("Ó", "O")
+        .str.replace("Ú", "U")
+    )
+
+    if "PEDIDO" not in df_visitas.columns:
+        raise ValueError("❌ PRIMER_VISITAS no tiene la columna PEDIDO")
+
+    df_visitas["PEDIDO"] = df_visitas["PEDIDO"].str.strip().str.upper()
+    
+
+    # ======================================================
+    # 🔎 VALIDAR SI PRIMER_VISITAS TIENE DATOS REALES
+    # ======================================================
+    df_visitas_datos = df_visitas[
+        df_visitas["PEDIDO"].notna() & (df_visitas["PEDIDO"].str.strip() != "")
+    ]
+
+    # ⛔ SALIDA TEMPRANA: NO HAY DATOS NUEVOS
+    if df_clean_datos.empty and df_visitas_datos.empty:
+        raise RuntimeError(
+        "AGPE_CLEAN y PLANTILLA_PRIMER_VISITAS no contienen datos para procesar."
+    )
+    
+
+    if "DETALLE_VISITA" in df_visitas.columns:
+        df_visitas["DETALLE_VISITA"] = df_visitas["DETALLE_VISITA"].str.strip().str.upper()
+    else:
+        df_visitas["DETALLE_VISITA"] = ""
+
+    if "SUBZONA" not in df_visitas.columns:
+        df_visitas["SUBZONA"] = ""
+
+    if "SUBZONA_ID" in df_visitas.columns:
+        map_subzona = {
+            "ORI": "ORIENTE",
+            "MET": "METROPOLITANA",
+            "OCC": "OCCIDENTE",
+            "SUR": "SUROESTE",
+            "ND": "NORDESTE",
+        }
+        df_visitas["SUBZONA"] = (
+            df_visitas["SUBZONA_ID"]
+            .str.strip()
+            .str.upper()
+            .map(map_subzona)
+            .fillna("")
+        )
+
+    nuevas_visitas = pd.DataFrame(
+        {
+            "PEDIDO": df_visitas["PEDIDO"],
+            "DIRECCION": df_visitas.get("DIRECCION", ""),
+            "MUNICIPIO": df_visitas.get("MUNICIPIO", ""),
+            "CLIENTE": df_visitas.get("CLIENTE", ""),
+            "SUBZONA": df_visitas["SUBZONA"],
+            "PROMOTOR": df_visitas.get("PROMOTOR", ""),
+            "CELULAR": df_visitas.get("CELULAR", ""),
+            "FECHA_ATENCION": df_visitas.get("FECHA_ATENCION", ""),
+            "HORA_VISITA": df_visitas.get("HORA_VISITA", ""),
+            "REVISOR": "",
+            "TIPO_VISITA": "C07",
+            "OBSERVACION": df_visitas.get("OBSERVACION", ""),
+            "FECHA_CIERRE_FENIX": "",
+            "POTENCIA_AC_KW": df_visitas.get("POTENCIA_AC_KW", ""),
+            "DETALLE_VISITA": df_visitas.get("DETALLE_VISITA", ""),
+            "COORDENADAX": df_visitas.get("COORDENADAX", ""),
+            "COORDENADAY": df_visitas.get("COORDENADAY", ""),
+            "TIPO_MEDIDOR": "",
+            "URBANO_RURAL": "",
+            "FECHA_CAMBIO_ESTADO": "",
+            "FECHA_LIMITE_ANS": "",
+            "DIAS_RESTANTES": "",
+        }
+    )
+
+    # =========================
+    # APPEND FINAL
+    # =========================
+    df_ans = pd.read_excel(ruta_ans, dtype=str)
+
+    # =========================
+    # BDPCP (BUSCARV MANUAL)
+    # =========================
+    ruta_bdpcp = base_dir / "data_clean" / "BDPCP.xlsx"
+
+    if ruta_bdpcp.exists():
+        df_bdpcp = pd.read_excel(ruta_bdpcp, dtype=str)
+
+        df_bdpcp.columns = (
+            df_bdpcp.columns.astype(str)
+            .str.strip()
+            .str.upper()
+            .str.replace(" ", "_", regex=False)
+            .str.replace("[", "", regex=False)
+            .str.replace("]", "", regex=False)
+        )
+
+        columnas_bdpcp = ["PEDIDO", "PROMOTOR", "CELULAR", "POTENCIA_AC_KW"]
+
+        faltantes = [c for c in columnas_bdpcp if c not in df_bdpcp.columns]
+        if faltantes:
+            raise ValueError(f"❌ BDPCP sin columnas requeridas: {faltantes}")
+
+        df_bdpcp["PEDIDO"] = df_bdpcp["PEDIDO"].str.strip().str.upper()
+
+    else:
+        df_bdpcp = None
+
+    df_final = pd.concat([df_ans, nuevas_clean, nuevas_visitas], ignore_index=True)
+
+
+    if "FECHA_CAMBIO_ESTADO" in df_final.columns:
+        df_final["FECHA_CAMBIO_ESTADO"] = pd.to_datetime(
+            df_final["FECHA_CAMBIO_ESTADO"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # --------------------------------------------------
+    # 🔁 BUSCARV BDPCP → AGPE_ANS (POR PEDIDO)
+    # --------------------------------------------------
+    if df_bdpcp is not None:
+        df_final = df_final.merge(
+            df_bdpcp[["PEDIDO", "PROMOTOR", "CELULAR", "POTENCIA_AC_KW"]],
+            on="PEDIDO",
+            how="left",
+            suffixes=("", "_BDPCP")
+        )
+
+        # Priorizar datos BDPCP sobre vacíos
+        for col in ["PROMOTOR", "CELULAR", "POTENCIA_AC_KW"]:
+            col_bd = f"{col}_BDPCP"
+            if col_bd in df_final.columns:
+                df_final[col] = (
+                df_final[col]
+                .replace("", np.nan)
+                .fillna(df_final[col_bd])
+            )
+            df_final.drop(columns=[col_bd], inplace=True)
+
+    # ------------------------------------------------------------
+    # FECHA LIMITE ANS
+    # ------------------------------------------------------------
+    def calcular_fecha_limite_ans(row):
+        detalle = str(row["DETALLE_VISITA"]).upper()
+        fecha_base = row["FECHA_CAMBIO_ESTADO"]
+
+        if detalle.strip() == "" or pd.isna(fecha_base):
+            return ""
+
+        fecha_base = pd.to_datetime(fecha_base)
+
+        # DOCUMENTOS + VISITA → 12 días hábiles
+        if "DOCUMENT" in detalle and "VISITA" in detalle:
+            dias = 12
+
+        # SOLO DOCUMENTOS → 5 días hábiles
+        elif "DOCUMENT" in detalle:
+            dias = 5
+
+        else:
+            return ""
+
+        try:
+            fecha_dia = np.busday_offset(
+                fecha_base.date(),
+                dias,
+                weekmask=WEEKMASK,
+                holidays=FESTIVOS
+            )
+
+            # Reinyectar hora/minuto/segundo originales (RESIDUO Excel)
+            fecha_limite = datetime.combine(
+                pd.to_datetime(fecha_dia).date(),
+                fecha_base.time()
+            )
+
+            return fecha_limite
+
+        except Exception:
+            return ""
+    
+    df_final["FECHA_LIMITE_ANS"] = df_final.apply(calcular_fecha_limite_ans, axis=1)
+    
+    df_final["FECHA_LIMITE_ANS"] = pd.to_datetime(
+         df_final["FECHA_LIMITE_ANS"], errors="coerce"
+    )
+
+    # ------------------------------------------------------------
+    # DIAS RESTANTES
+    # ------------------------------------------------------------
+    fecha_control = date.today()
+
+    def calcular_dias_restantes(fecha_limite):
+        if fecha_limite == "" or pd.isna(fecha_limite):
+            return ""
+
+        try:
+            dias = np.busday_count(
+                fecha_control,
+                pd.to_datetime(fecha_limite).date(),
+                weekmask=WEEKMASK,
+                holidays=FESTIVOS
+            ) - 1
+
+            return max(0, dias)
+        except Exception:
+            return ""
+    
+    df_final["DIAS_RESTANTES"] = df_final["FECHA_LIMITE_ANS"].apply(calcular_dias_restantes)
+
+    # Asegurar tipo numérico en DIAS_RESTANTES
+    df_final["DIAS_RESTANTES"] = pd.to_numeric(
+        df_final["DIAS_RESTANTES"], errors="coerce"
+    )
+   
+    df_final["OBSERVACION"] = (
+        df_final["OBSERVACION"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    # ------------------------------------------------------------
+    # ESTADO ANS (LÓGICA DEFINITIVA EN PYTHON)
+    # ------------------------------------------------------------
+    def calcular_estado_ans(row):
+        obs = str(row.get("OBSERVACION", "")).strip().upper()
+        dias = row.get("DIAS_RESTANTES")
+
+        # Casos especiales
+        if obs in ["ANULADO", "EPM", "414", "CAMBIARON FECHA"]:
+            return obs
+
+        if pd.isna(dias):
+            return ""
+
+        try:
+            dias = int(dias)
+        except:
+            return ""
+
+        if dias < 0:
+            return "VENCIDO"
+        elif dias > 1:
+            return "A TIEMPO"
+        elif dias == 1:
+            return "ALERTA"
+        else:
+            return "ALERTA 0 DÍAS"
+
+
+    df_final["ESTADO_ANS"] = df_final.apply(calcular_estado_ans, axis=1)
+
+    
+
+    print(f"✅ Filas agregadas desde AGPE_CLEAN: {len(nuevas_clean)}")
+    print(f"✅ Filas agregadas desde PRIMER_VISITAS: {len(nuevas_visitas)}")
+    print(f"📚 Total histórico AGPE_ANS: {len(df_final)}")
+    
+    # df_final.to_excel(ruta_ans, index=False)
+    from openpyxl import load_workbook
+    from openpyxl.utils.dataframe import dataframe_to_rows
+
+    wb = load_workbook(ruta_ans, data_only=False, keep_vba=True)
+    ws = wb["Sheet1"] if "Sheet1" in wb.sheetnames else wb.active
+
+    headers = []
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(row=1, column=c).value
+        headers.append(str(v).strip().upper() if v is not None else "")
+
+    headers_finales = [h for h in headers if h != ""]
+
+    for h in headers_finales:
+        if h not in df_final.columns:
+            df_final[h] = ""
+
+    df_ordenado = df_final[headers_finales]
+
+    # --------------------------------------------------
+    # ESCRIBIR DATAFRAME COMPLETO EN EXCEL (SIN FÓRMULAS)
+    # --------------------------------------------------
+    from openpyxl.utils.dataframe import dataframe_to_rows
+
+    # Borrar datos anteriores (conservar encabezados)
+    if ws.max_row > 1:
+        ws.delete_rows(2, ws.max_row - 1)
+
+    # Escribir filas nuevas
+    for fila in dataframe_to_rows(df_ordenado, index=False, header=False):
+        ws.append(fila)
+
+    wb.save(ruta_ans)
+    wb.close()
+
+    convertir_a_tabla_excel(ruta_ans)
+    ajustar_ancho_columnas(ruta_ans)
+    aplicar_formato_final_agpe_seguro(ruta_ans)
+    limpiar_agpe_clean(ruta_clean)
+    limpiar_primer_visitas(ruta_visitas)
+    aplicar_validacion_observacion(ruta_ans)
+
+# ============================================================
+# 🔒 BLOQUE FINAL SEGURO – FORMATO CONDICIONAL (NO SE PIERDE)
+# ============================================================
+
+def aplicar_formato_final_agpe_seguro(ruta_excel):
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+    from openpyxl.formatting.rule import FormulaRule
+    from openpyxl.worksheet.table import Table, TableStyleInfo
+
+    wb = load_workbook(ruta_excel, keep_vba=True)
+    ws = wb.active
+
+    ultima_fila = ws.max_row
+    ultima_col = ws.max_column
+    ultima_col_letra = ws.cell(row=1, column=ultima_col).column_letter
+
+    # 🔎 Buscar columna ESTADO_ANS
+    col_estado = None
+    for celda in ws[1]:
+        if str(celda.value).strip().upper() == "ESTADO_ANS":
+            col_estado = celda.column_letter
+            break
+
+    if not col_estado:
+        wb.close()
+        return
+
+    rango = f"${col_estado}$2:${col_estado}${ultima_fila}"
+
+    # 🎨 FORMATO CONDICIONAL (MISMA LÓGICA FENIX)
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'${col_estado}2="VENCIDO"'],
+            fill=PatternFill(fill_type="solid", start_color="FF0000", end_color="FF0000")
+        )
+    )
+
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'${col_estado}2="ALERTA 0 DÍAS"'],
+            fill=PatternFill(fill_type="solid", start_color="FFA500", end_color="FFA500")
+        )
+    )
+
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'${col_estado}2="ALERTA"'],
+            fill=PatternFill(fill_type="solid", start_color="FFF200", end_color="FFF200")
+        )
+    )
+
+    ws.conditional_formatting.add(
+        rango,
+        FormulaRule(
+            formula=[f'${col_estado}2="A TIEMPO"'],
+            fill=PatternFill(fill_type="solid", start_color="00B050", end_color="00B050")
+        )
+    )
+
+    # 🧱 Tabla estructurada (NO duplica)
+    if "tbl_AGPE_ANS" not in ws.tables:
+        tabla = Table(
+            displayName="tbl_AGPE_ANS",
+            ref=f"A1:{ultima_col_letra}{ultima_fila}"
+        )
+        tabla.tableStyleInfo = TableStyleInfo(
+            name="TableStyleMedium9",
+            showRowStripes=True
+        )
+        ws.add_table(tabla)
+
+    # 📐 Conservar / ajustar anchos
+    for col in ws.columns:
+        max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 45)
+
+    wb.save(ruta_excel)
+    wb.close()
+from openpyxl.worksheet.datavalidation import DataValidation
+
+def aplicar_validacion_observacion(ruta_excel):
+    wb = load_workbook(ruta_excel, keep_vba=True)
+    ws = wb.active
+
+    col_obs = None
+    for celda in ws[1]:
+        if str(celda.value).strip().upper() == "OBSERVACION":
+            col_obs = celda.column_letter
+            break
+
+    if not col_obs:
+        wb.close()
+        return
+
+    dv = DataValidation(
+        type="list",
+        formula1="=validador!$A$1:$A$9",
+        allow_blank=True,
+        showDropDown=False
+    )
+
+    ws.add_data_validation(dv)
+
+    # 👇 ESTA ES LA CLAVE
+    ultima_fila = ws.max_row
+    dv.add(f"{col_obs}2:{col_obs}{ultima_fila}")
+
+    ws.sheet_view.selection[0].activeCell = f"{col_obs}2"
+    ws.sheet_view.selection[0].sqref = f"{col_obs}2"
+
+    wb.save(ruta_excel)
+    wb.close()
+
+def limpiar_agpe_clean(ruta_clean):
+    """
+    Deja AGPE_CLEAN.xlsx vacío conservando solo encabezados
+    """
+    df_vacio = pd.read_excel(ruta_clean, nrows=0)
+    df_vacio.to_excel(ruta_clean, index=False)
+
+def limpiar_primer_visitas(ruta_visitas):
+    """
+    Borra registros de PLANTILLA_PRIMER_VISITAS
+    sin afectar macros ni encabezados
+    """
+    from openpyxl import load_workbook
+
+    wb = load_workbook(ruta_visitas, keep_vba=True)
+    ws = wb.active
+
+    if ws.max_row > 1:
+        ws.delete_rows(2, ws.max_row - 1)
+
+    wb.save(ruta_visitas)
+    wb.close()
+
+
+if __name__ == "__main__":
+    append_agpe_ans()
