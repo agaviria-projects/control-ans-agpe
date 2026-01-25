@@ -130,12 +130,17 @@ var map = L.map('map').setView([6.2443,-75.581],12);
 
 var mapaNormal = L.tileLayer(
   'https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',
-  {{maxZoom:19}}
+  {{
+    maxZoom: 18,
+    maxNativeZoom: 18
+  }}
 ).addTo(map);
 
 var mapaSatelital = L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}',
-  {{maxZoom:19}}
+  {{
+    maxZoom: 19
+  }}
 );
 
 L.control.layers(
