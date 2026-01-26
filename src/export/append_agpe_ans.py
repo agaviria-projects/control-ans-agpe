@@ -51,7 +51,7 @@ def _dias_ans_por_tipo_visita(tipo_visita):
     tv = str(tipo_visita).upper().strip()
     
     if tv in ("C08", "C09"):
-         return 9 
+        return 9 
     return None
 
 def _estado_por_dias_restantes(dias):
@@ -220,14 +220,14 @@ def append_agpe_ans():
         wb_ans.close()
         raise ValueError("❌ AGPE_ANS no tiene columna PEDIDO en encabezados.")
 
-    pedidos_existentes = set()
+    pedidos_historicos = set()
     for r in range(2, ws_ans.max_row + 1):
         v = ws_ans.cell(row=r, column=col_pedido_idx).value
         v = _safe_str(v).upper()
         if v != "":
-            pedidos_existentes.add(v)
+            pedidos_historicos.add(v)
 
-    print(f"📌 PEDIDOS existentes en AGPE_ANS: {len(pedidos_existentes)}")
+    print(f"📌 PEDIDOS Históricos en AGPE_ANS: {len(pedidos_historicos)}")
 
     # Encabezados reales de AGPE_ANS (para respetar orden)
     headers_ans = []
@@ -347,7 +347,7 @@ def append_agpe_ans():
 
     for _, row in df_clean_datos.iterrows():
         pedido = _safe_str(row.get("PEDIDO", "")).upper()
-        if pedido == "" or pedido in pedidos_existentes:
+        if pedido == "":
             continue
 
         d = _blank_row_dict()
@@ -365,11 +365,11 @@ def append_agpe_ans():
         d["FECHA_CAMBIO_ESTADO"] = _safe_str(row.get("FECHA_CAMBIO_ESTADO", ""))
 
         nuevas_filas.append(d)
-        pedidos_existentes.add(pedido)
+        
 
     for _, row in df_vis_datos.iterrows():
         pedido = _safe_str(row.get("PEDIDO", "")).upper()
-        if pedido == "" or pedido in pedidos_existentes:
+        if pedido == "" or pedido in pedidos_historicos:
             continue
 
         d = _blank_row_dict()
@@ -394,7 +394,6 @@ def append_agpe_ans():
         d["FECHA_CAMBIO_ESTADO"] = _safe_str(row.get("FECHA_CAMBIO_ESTADO", ""))
 
         nuevas_filas.append(d)
-        pedidos_existentes.add(pedido)
 
     if not nuevas_filas:
         wb_ans.close()
@@ -429,12 +428,7 @@ def append_agpe_ans():
 
     # ===== DEBUG TEMPORAL (NO AFECTA LÓGICA) =====
     print("DEBUG BDPCP keys:", list(bdpcp_map.keys())[:5])
-    print("DEBUG pedido ejemplo:", list(pedidos_existentes)[:5])
-
-    
-    # ===== DEBUG TEMPORAL (NO AFECTA LÓGICA) =====
-    print("DEBUG BDPCP keys:", list(bdpcp_map.keys())[:5])
-    print("DEBUG pedido ejemplo:", list(pedidos_existentes)[:5])
+    print("DEBUG pedido ejemplo:", list(pedidos_historicos)[:5])
 
     # ============================================================
     # PASO 8.2) CRUZAR BDPCP TAMBIÉN EN FILAS EXISTENTES (solo llena vacíos)
