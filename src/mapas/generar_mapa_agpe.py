@@ -24,6 +24,7 @@ def generar_mapa_leaflet_agpe():
             "PEDIDO",
             "OBSERVACION",
             "TIPO_VISITA",
+            "MUNICIPIO",
             "COORDENADAY",
             "COORDENADAX",
             "DIRECCION",
@@ -206,6 +207,8 @@ function pintar(arr){{
         popupHtml += `
           • <b>Pedido:</b> ${{p.PEDIDO}}<br>
             <b>Cliente:</b> ${{p.CLIENTE}}<br>
+            <b>Municipio:</b> ${{p.MUNICIPIO}}<br>
+            <b>Tipo visita:</b> ${{p.TIPO_VISITA}}<br>
             <b>Dirección:</b> ${{p.DIRECCION}}<br><br>
         `;
       }});
@@ -213,6 +216,8 @@ function pintar(arr){{
       popupHtml = `
         <b>Pedido:</b> ${{d.PEDIDO}}<br>
         <b>Cliente:</b> ${{d.CLIENTE}}<br>
+        <b>Municipio:</b> ${{d.MUNICIPIO}}<br>
+        <b>Tipo visita:</b> ${{d.TIPO_VISITA}}<br>
         <b>Dirección:</b> ${{d.DIRECCION}}<br>
         <b>Celular:</b> ${{d.CELULAR}}
       `;
@@ -224,6 +229,8 @@ function pintar(arr){{
     m.datos = {{
       pedido: d.PEDIDO,
       cliente: d.CLIENTE,
+      municipio: d.MUNICIPIO,
+      tipo_visita: d.TIPO_VISITA,
       direccion: d.DIRECCION,
       celular: d.CELULAR,
       urlMaps: `https://www.google.com/maps?q=${{d.COORDENADAY}},${{d.COORDENADAX}}`
@@ -261,9 +268,11 @@ function copiarEnlace(){{
   let m = markers.find(x => x.datos && x.datos.pedido.includes(pedido));
   if(!m) return;
 
-  navigator.clipboard.writeText(
+   navigator.clipboard.writeText(
     "Pedido: " + m.datos.pedido + "\\n" +
     "Cliente: " + m.datos.cliente + "\\n" +
+    "Municipio: " + m.datos.municipio + "\\n" +
+    "Tipo visita: " + m.datos.tipo_visita + "\\n" +
     "Dirección: " + m.datos.direccion + "\\n" +
     "Celular: " + m.datos.celular + "\\n\\n" +
     "Ubicación Google Maps:\\n" + m.datos.urlMaps
