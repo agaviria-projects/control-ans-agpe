@@ -381,8 +381,8 @@ def append_agpe_ans():
 
         d["PROMOTOR"] = _safe_str(row.get("PROMOTOR", ""))
         d["CELULAR"] = _safe_str(row.get("CELULAR", ""))
-        d["FECHA_ATENCION"] = _safe_str(row.get("FECHA_ATENCION", ""))
-        d["HORA_VISITA"] = _safe_str(row.get("HORA_VISITA", ""))
+        d["FECHA_ATENCION"] = ""
+        d["HORA_VISITA"] = ""
         d["POTENCIA_AC_KW"] = _safe_str(row.get("POTENCIA_AC_KW", ""))
 
         d["DETALLE_VISITA"] = _safe_str(row.get("DETALLE_VISITA", "")).upper()
