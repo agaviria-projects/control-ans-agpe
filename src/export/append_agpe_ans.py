@@ -381,7 +381,7 @@ def append_agpe_ans():
 
     for _, row in df_vis_datos.iterrows():
         pedido = _safe_str(row.get("PEDIDO", "")).upper()
-        if pedido == "" or pedido in pedidos_historicos:
+        if pedido == "":
             continue
 
         d = _blank_row_dict()

@@ -211,7 +211,8 @@ function pintar(arr){{
             <b>Cliente:</b> ${{p.CLIENTE}}<br>
             <b>Municipio:</b> ${{p.MUNICIPIO}}<br>
             <b>Tipo visita:</b> ${{p.TIPO_VISITA}}<br>
-            <b>Dirección:</b> ${{p.DIRECCION}}<br><br>
+            <b>Dirección:</b> ${{p.DIRECCION}}<br>
+            <b>Coordenadas:</b> ${{p.COORDENADAY}}, ${{p.COORDENADAX}}<br><br>
         `;
       }});
     }} else {{
@@ -221,7 +222,8 @@ function pintar(arr){{
         <b>Municipio:</b> ${{d.MUNICIPIO}}<br>
         <b>Tipo visita:</b> ${{d.TIPO_VISITA}}<br>
         <b>Dirección:</b> ${{d.DIRECCION}}<br>
-        <b>Celular:</b> ${{d.CELULAR}}
+        <b>Celular:</b> ${{d.CELULAR}}<br>
+        <b>Coordenadas:</b> ${{d.COORDENADAY}}, ${{d.COORDENADAX}}
       `;
     }}
 
@@ -234,6 +236,8 @@ function pintar(arr){{
       municipio: d.MUNICIPIO,
       tipo_visita: d.TIPO_VISITA,
       direccion: d.DIRECCION,
+      coordY: d.COORDENADAY,
+      coordX: d.COORDENADAX,
       celular: d.CELULAR,
       urlMaps: `https://www.google.com/maps?q=${{d.COORDENADAY}},${{d.COORDENADAX}}`
     }};
