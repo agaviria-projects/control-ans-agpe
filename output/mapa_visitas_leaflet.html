@@ -229,17 +229,78 @@ function limpiarFiltros(){
   pintar(data);
 }
 
+// ===================================================
+// ✅ COPIAR A PORTAPAPELES (FUNCIONA EN file://)
+// ===================================================
+function copiarTextoPortapapeles(texto){
+  // 1) Si hay clipboard API y contexto seguro, úsala
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(texto);
+  }
+
+  // 2) Fallback: textarea + execCommand (sirve en file://)
+  return new Promise(function(resolve, reject){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = texto;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-9999px";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+
+      if (ok) resolve();
+      else reject(new Error("copy_failed"));
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 function copiarEnlace(){
-  let pedido = fPedido.value;
-  if(!pedido) return;
+  let pedido = (fPedido.value || "").trim();
+  if(!pedido) {
+    toast.innerText = "Escribe un pedido primero.";
+    toast.style.display="block";
+    setTimeout(()=>toast.style.display="none",2500);
+    return;
+  }
 
-  let m = markers.find(x => x.datos && x.datos.pedido.includes(pedido));
-  if(!m) return;
+  let m = markers.find(x => x.datos && x.datos.pedido && x.datos.pedido.includes(pedido));
+  if(!m) {
+    toast.innerText = "Pedido no encontrado en el mapa actual.";
+    toast.style.display="block";
+    setTimeout(()=>toast.style.display="none",2500);
+    return;
+  }
 
-  
+  let d = m.datos;
 
-  toast.style.display="block";
-  setTimeout(()=>toast.style.display="none",2500);
+  // Texto listo para pegar en WhatsApp
+  let texto = `Pedido: ${d.pedido}
+Cliente: ${d.cliente}
+Dirección: ${d.direccion}
+Celular: ${d.celular}
+
+Ubicación Google Maps:
+${d.urlMaps}`;
+
+  copiarTextoPortapapeles(texto)
+    .then(function(){
+      toast.innerText = "Datos copiados. Listo para enviar por WhatsApp";
+      toast.style.display="block";
+      setTimeout(()=>toast.style.display="none",2500);
+    })
+    .catch(function(){
+      toast.innerText = "No se pudo copiar. Intenta nuevamente.";
+      toast.style.display="block";
+      setTimeout(()=>toast.style.display="none",2500);
+    });
 }
 
 cargarFiltros();
