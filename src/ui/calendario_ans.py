@@ -7,6 +7,10 @@ from datetime import date, timedelta
 import tkinter as tk
 from tkinter import ttk
 
+MESES_ES = [
+    "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+]
 
 # ============================================================
 # CONFIGURACIÓN FESTIVOS (mantén aquí los festivos del ANS)
@@ -54,7 +58,7 @@ class Theme:
 class CalendarioANS(tk.Toplevel):
     def __init__(self, master: tk.Misc | None = None, year: int | None = None, month: int | None = None):
         super().__init__(master)
-        self.title("Calendario ANS - Elite Ingenieros")
+        self.title("Calendario ANS")
         self.resizable(False, False)
 
         self.theme = Theme()
@@ -98,7 +102,7 @@ class CalendarioANS(tk.Toplevel):
         ttk.Button(footer, text="Vista anual", command=self._open_year_view).pack(side="left")
         ttk.Button(footer, text="Cerrar", command=self.destroy).pack(side="right")
 
-        self._render_month()
+        self._render_month()  
 
     # -------------------------
     # Helper: número de semana ISO por fila
@@ -124,8 +128,8 @@ class CalendarioANS(tk.Toplevel):
         for w in self.grid_frame.winfo_children():
             w.destroy()
 
-        mes_nombre = calendar.month_name[self.month]
-        self.lbl_title.config(text=f"{mes_nombre} {self.year}".title())
+        mes_nombre = MESES_ES[self.month]
+        self.lbl_title.config(text=f"{mes_nombre} {self.year}")
 
         # Encabezados días (Lu..Do)
         # calendar: lunes=0...domingo=6. Queremos Lu..Do
@@ -297,7 +301,7 @@ class YearView(tk.Toplevel):
                 frame.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
 
                 title = tk.Label(
-                    frame, text=calendar.month_name[m].title(),
+                    frame, text=MESES_ES[m],
                     bg=self.theme.grid_bg, font=("Segoe UI", 10, "bold"), pady=4
                 )
                 title.pack(fill="x")
