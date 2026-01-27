@@ -1,4 +1,4 @@
-print("🔥 EJECUTANDO append_agpe_ans.py REAL (V1 SIN CALENDARIO) 🔥")
+print("🔥 EJECUTANDO append_agpe_ans.py 🔥")
 
 from pathlib import Path
 import pandas as pd
@@ -36,16 +36,26 @@ def _safe_str(s):
     return str(s).strip()
 
 def _dias_ans_por_detalle(detalle):
-    d = str(detalle).upper()
+    d = _safe_str(detalle).upper().strip()
 
-    if "DOCUMENT" in d and any(x in d for x in ["2", "3", "4"]):
+    # 12 días hábiles: "1ER/1RA/2DA/3ER/3RA/4TA/5TA VISITA" (aunque NO diga DOCUMENTOS)
+    if "VISITA" in d and any(x in d for x in ("1ER", "1RA", "2DA", "3ER", "3RA", "4TA", "5TA")):
         return 12
-    if any(x in d for x in ["1RA", "1ER", "PRIMERA"]):
-        return 10
-    if "DOCUMENT" in d:
+
+    # 12 días hábiles: "X VISITA Y DOCUMENTOS" o similares
+    if "VISITA" in d and ("DOC" in d or "DOCUMENT" in d):
+        return 12
+
+    # 5 días hábiles
+    if d == "DOCUMENTOS" or d.startswith("DOCUMENT"):
         return 5
 
+    # 9 días hábiles
+    if d in ("DIRECTA", "SEMIDIRECTA", "INDIRECTA"):
+        return 9
+
     return None
+
 
 def _dias_ans_por_tipo_visita(tipo_visita):
     tv = str(tipo_visita).upper().strip()
@@ -135,24 +145,6 @@ def _limpiar_excel_dejar_encabezados_xlsm(ruta_xlsm):
     wb.save(ruta_xlsm)
     wb.close()
 
-def _eliminar_fila2_si_vacia(ws):
-    """
-    Elimina la fila 2 SOLO si está completamente vacía (todas las celdas vacías/None).
-    Esto evita que quede esa “fila azul” vacía debajo del encabezado.
-    """
-    if ws.max_row < 2:
-        return
-
-    hay_algo = False
-    for c in range(1, ws.max_column + 1):
-        v = ws.cell(row=2, column=c).value
-        if _safe_str(v) != "":
-            hay_algo = True
-            break
-
-    if not hay_algo:
-        ws.delete_rows(2, 1)
-
 
 # ============================================================
 # PASO 1) DEFINIR COLUMNAS CONTROLADAS POR APPEND (sin tocar W)
@@ -212,8 +204,26 @@ def append_agpe_ans():
     wb_ans = load_workbook(ruta_ans, keep_vba=True, data_only=False)
     ws_ans = wb_ans.active
 
+    def _eliminar_fila2_si_vacia(ws):
+        """
+        Elimina la fila 2 SOLO si está completamente vacía (todas las celdas vacías/None).
+        Esto evita que quede esa “fila azul” vacía debajo del encabezado.
+        """
+        if ws.max_row < 2:
+            return
+
+        hay_algo = False
+        for c in range(1, ws.max_column + 1):
+            v = ws.cell(row=2, column=c).value
+            if _safe_str(v) != "":
+                hay_algo = True
+                break
+
+        if not hay_algo:
+            ws.delete_rows(2, 1)
+
     # ✅ Quitar la fila 2 “vacía azul” si existe
-    #_eliminar_fila2_si_vacia(ws_ans)
+    _eliminar_fila2_si_vacia(ws_ans)
 
     col_pedido_idx = _find_col_index_by_header(ws_ans, "PEDIDO")
     if not col_pedido_idx:
@@ -525,14 +535,15 @@ def append_agpe_ans():
             _find_col_index_by_header(ws_ans, "TIPO_VISITA")
         ).value
 
-        dias_ans = _dias_ans_por_tipo_visita(tipo_visita)
+        # ✅ PRIORIDAD CORRECTA: DETALLE manda
+        dias_ans = _dias_ans_por_detalle(detalle)
 
+        # fallback solo si DETALLE no aplica
+        dias_ans = _dias_ans_por_detalle(detalle)
         if dias_ans is None:
-            dias_ans = _dias_ans_por_detalle(detalle)
-
+            dias_ans = _dias_ans_por_tipo_visita(tipo_visita)
         if dias_ans is None:
             continue
-        # ⛔ FIN DEL CAMBIO
 
         fecha_limite = fecha_cambio + CustomBusinessDay(n=dias_ans)
         dias_restantes = (fecha_limite.date() - hoy).days
