@@ -70,7 +70,9 @@ button{padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:12px;}
   <input type="text" id="fPedido" class="inputPedido" placeholder="Ej: 23560158">
 
   <label class="lbl">Observación</label>
-  <select id="fObs"></select>
+  <select id="fObs">
+    <option value="">-- Todas --</option>
+  </select>
 
   <label class="lbl">Tipo Visita</label>
   <select id="fTipo">
@@ -230,15 +232,7 @@ function copiarEnlace(){
   let m = markers.find(x => x.datos && x.datos.pedido.includes(pedido));
   if(!m) return;
 
-   navigator.clipboard.writeText(
-    "Pedido: " + m.datos.pedido + "\n" +
-    "Cliente: " + m.datos.cliente + "\n" +
-    "Municipio: " + m.datos.municipio + "\n" +
-    "Tipo visita: " + m.datos.tipo_visita + "\n" +
-    "Dirección: " + m.datos.direccion + "\n" +
-    "Celular: " + m.datos.celular + "\n\n" +
-    "Ubicación Google Maps:\n" + m.datos.urlMaps
-  );
+  
 
   toast.style.display="block";
   setTimeout(()=>toast.style.display="none",2500);
