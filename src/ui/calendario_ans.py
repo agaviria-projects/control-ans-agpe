@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 import tkinter as tk
 from tkinter import ttk
 
@@ -45,6 +45,10 @@ class Theme:
 
     # Día de hoy (borde)
     today_border: str = "#111111"
+
+    # Columna Semana (Sem)
+    weeknum_bg: str = "#E6E6E6"   # gris suave
+    weeknum_fg: str = "#333333"
 
 
 class CalendarioANS(tk.Toplevel):
@@ -97,6 +101,22 @@ class CalendarioANS(tk.Toplevel):
         self._render_month()
 
     # -------------------------
+    # Helper: número de semana ISO por fila
+    # -------------------------
+    def _iso_week_for_row(self, year: int, month: int, week: list[int]) -> int:
+        # Busca el primer día real (no cero) y su índice de columna (Lu=0..Do=6)
+        first_day = next((d for d in week if d != 0), None)
+        if first_day is None:
+            return 0
+
+        first_idx = week.index(first_day)  # offset desde lunes
+        d0 = date(year, month, first_day)
+
+        # Lunes real de esa fila (puede caer en mes/año anterior)
+        monday = d0 - timedelta(days=first_idx)
+        return monday.isocalendar().week
+
+    # -------------------------
     # Render mensual
     # -------------------------
     def _render_month(self):
@@ -111,7 +131,20 @@ class CalendarioANS(tk.Toplevel):
         # calendar: lunes=0...domingo=6. Queremos Lu..Do
         dias = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"]
 
-        for c, d in enumerate(dias):
+        # Columna adicional: número de semana
+        lbl_sem = tk.Label(
+            self.grid_frame,
+            text="Sem",
+            bg=self.theme.weeknum_bg,
+            fg=self.theme.weeknum_fg,
+            font=("Segoe UI", 9, "bold"),
+            width=4,
+            pady=4
+        )
+        lbl_sem.grid(row=0, column=0, sticky="nsew")
+
+        # Días arrancan en columna 1
+        for c, d in enumerate(dias, start=1):
             lbl = tk.Label(
                 self.grid_frame,
                 text=d,
@@ -129,15 +162,33 @@ class CalendarioANS(tk.Toplevel):
         hoy = date.today()
 
         for r, week in enumerate(weeks, start=1):
-            for c, daynum in enumerate(week):
+            # Semana ISO en columna 0
+            wk = self._iso_week_for_row(self.year, self.month, week)
+            wk_cell = tk.Label(
+                self.grid_frame,
+                text=str(wk) if wk else "",
+                bg=self.theme.weeknum_bg,
+                fg=self.theme.weeknum_fg,
+                width=4,
+                pady=6,
+                font=("Segoe UI", 9, "bold"),
+                bd=1,
+                relief="solid"
+            )
+            wk_cell.grid(row=r, column=0, sticky="nsew", padx=1, pady=1)
+
+            # Días: columnas 1..7
+            for day_idx, daynum in enumerate(week):
+                col = day_idx + 1
+
                 if daynum == 0:
                     # celda vacía
                     cell = tk.Label(self.grid_frame, text="", bg=self.theme.grid_bg, width=4, pady=6)
-                    cell.grid(row=r, column=c, sticky="nsew", padx=1, pady=1)
+                    cell.grid(row=r, column=col, sticky="nsew", padx=1, pady=1)
                     continue
 
                 d = date(self.year, self.month, daynum)
-                is_weekend = c in (5, 6)  # Sa=5, Do=6
+                is_weekend = day_idx in (5, 6)  # Sa=5, Do=6
                 is_festivo = d in FESTIVOS
 
                 bg = self.theme.grid_bg
@@ -171,10 +222,10 @@ class CalendarioANS(tk.Toplevel):
                 if highlight:
                     cell.config(highlightthickness=2, highlightbackground=self.theme.today_border)
 
-                cell.grid(row=r, column=c, sticky="nsew", padx=1, pady=1)
+                cell.grid(row=r, column=col, sticky="nsew", padx=1, pady=1)
 
-        # Ajuste de columnas uniforme
-        for c in range(7):
+        # Ajuste de columnas uniforme (Sem + 7 días = 8 columnas)
+        for c in range(8):
             self.grid_frame.grid_columnconfigure(c, weight=1)
 
     # -------------------------
@@ -256,7 +307,16 @@ class YearView(tk.Toplevel):
 
                 # Encabezados mini
                 dias = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"]
-                for cc, dname in enumerate(dias):
+
+                # Columna "Sem"
+                tk.Label(
+                    mini, text="Sem",
+                    bg=self.theme.weeknum_bg, fg=self.theme.weeknum_fg,
+                    font=("Segoe UI", 7, "bold"), width=3
+                ).grid(row=0, column=0)
+
+                # Días arrancan en columna 1
+                for cc, dname in enumerate(dias, start=1):
                     tk.Label(mini, text=dname, bg=self.theme.grid_bg, font=("Segoe UI", 7, "bold"), width=3)\
                         .grid(row=0, column=cc)
 
@@ -264,13 +324,31 @@ class YearView(tk.Toplevel):
                 weeks = cal.monthdayscalendar(self.year, m)
 
                 for rr, week in enumerate(weeks, start=1):
-                    for cc, daynum in enumerate(week):
+                    # Semana ISO (columna 0)
+                    if any(dn != 0 for dn in week):
+                        first_day = next(dn for dn in week if dn != 0)
+                        first_idx = week.index(first_day)
+                        monday = date(self.year, m, first_day) - timedelta(days=first_idx)
+                        wk = monday.isocalendar().week
+                    else:
+                        wk = 0
+
+                    tk.Label(
+                        mini, text=str(wk) if wk else "",
+                        bg=self.theme.weeknum_bg, fg=self.theme.weeknum_fg,
+                        width=3, font=("Segoe UI", 7, "bold")
+                    ).grid(row=rr, column=0, padx=1, pady=1)
+
+                    # Días (col 1..7)
+                    for day_idx, daynum in enumerate(week):
+                        col = day_idx + 1
+
                         if daynum == 0:
-                            tk.Label(mini, text="", bg=self.theme.grid_bg, width=3).grid(row=rr, column=cc)
+                            tk.Label(mini, text="", bg=self.theme.grid_bg, width=3).grid(row=rr, column=col)
                             continue
 
                         d = date(self.year, m, daynum)
-                        is_weekend = cc in (5, 6)
+                        is_weekend = day_idx in (5, 6)
                         is_festivo = d in FESTIVOS
 
                         bg = self.theme.grid_bg
@@ -285,7 +363,7 @@ class YearView(tk.Toplevel):
                         tk.Label(
                             mini, text=str(daynum), bg=bg, fg=fg, width=3,
                             font=("Segoe UI", 7, "bold" if is_festivo else "normal")
-                        ).grid(row=rr, column=cc, padx=1, pady=1)
+                        ).grid(row=rr, column=col, padx=1, pady=1)
 
         for c in range(4):
             self.container.grid_columnconfigure(c, weight=1)
