@@ -2,6 +2,8 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
+from copy import copy
+
 
 
 def preparar_agpe_clean_excel():
@@ -16,6 +18,35 @@ def preparar_agpe_clean_excel():
 
     wb = load_workbook(ruta_excel)
     ws = wb.active
+
+
+    # --------------------------------------------------
+    # ✅ ASEGURAR COLUMNA "Tipo Visita" (SI NO EXISTE)
+    # --------------------------------------------------
+   # ✅ ASEGURAR COLUMNA "Tipo Visita" (SI NO EXISTE)
+    encabezados = {cell.value: cell.column for cell in ws[1]}
+
+    if "Tipo Visita" not in encabezados:
+        nueva_col = ws.max_column + 1
+
+        celda_nueva = ws.cell(row=1, column=nueva_col)
+        celda_nueva.value = "Tipo Visita"
+
+        # ✅ Copiar estilo del encabezado anterior (para que quede igual: letra negra, fondo, bordes, etc.)
+        celda_ref = ws.cell(row=1, column=nueva_col - 1)
+
+        celda_nueva.font = copy(celda_ref.font)
+        celda_nueva.fill = copy(celda_ref.fill)
+        celda_nueva.border = copy(celda_ref.border)
+        celda_nueva.alignment = copy(celda_ref.alignment)
+        celda_nueva.number_format = celda_ref.number_format
+        celda_nueva.protection = copy(celda_ref.protection)
+
+        # ancho base opcional
+        ws.column_dimensions[celda_nueva.column_letter].width = 12
+
+        # refrescar encabezados para que el resto del script la detecte
+        encabezados = {cell.value: cell.column for cell in ws[1]}
 
     # --------------------------------------------------
     # 1️⃣ Buscar columna DETALLE_VISITA
@@ -37,6 +68,14 @@ def preparar_agpe_clean_excel():
         ws_listas = wb["LISTAS"]
 
     ws_listas["A1"] = "Detalle Visita"
+
+    ws_listas["B1"] = "Tipo Visita"
+
+    opciones_tipo_visita = ["C07", "C08", "C09"]
+
+    for i, opcion in enumerate(opciones_tipo_visita, start=2):
+        ws_listas[f"B{i}"] = opcion
+
 
     opciones_detalle = [
         "1ER VISITA",
@@ -83,6 +122,29 @@ def preparar_agpe_clean_excel():
     # validacion.add(rango)
 
     # --------------------------------------------------
+    # ✅ VALIDACIÓN: TIPO VISITA (C07, C08, C09)
+    # --------------------------------------------------
+    encabezados = {cell.value: cell.column for cell in ws[1]}
+    if "Tipo Visita" in encabezados:
+        col_tv = encabezados["Tipo Visita"]
+        letra_tv = ws.cell(row=1, column=col_tv).column_letter
+
+        dv_tv = DataValidation(
+            type="list",
+            formula1="=LISTAS!$B$2:$B$4",
+            allow_blank=True,
+            showDropDown=False
+        )
+        dv_tv.promptTitle = "Tipo Visita"
+        dv_tv.prompt = "Seleccione C07, C08 o C09"
+        dv_tv.errorTitle = "Valor no permitido"
+        dv_tv.error = "Debe seleccionar un valor válido (C07, C08, C09)."
+
+        ws.add_data_validation(dv_tv)
+        dv_tv.add(f"{letra_tv}2:{letra_tv}1048576")
+
+
+    # --------------------------------------------------
     # B3️⃣ Congelar encabezados + ajuste de ancho
     # --------------------------------------------------
     ws.freeze_panes = "A2"
@@ -103,7 +165,9 @@ def preparar_agpe_clean_excel():
     # --------------------------------------------------
     columnas_editables = [
         "Detalle Visita",
-        "Tipo Medidor"
+        "Tipo Medidor",
+        "Tipo Visita"
+
     ]
 
     encabezados = {cell.value: cell.column for cell in ws[1]}
