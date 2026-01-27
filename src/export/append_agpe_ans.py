@@ -368,6 +368,8 @@ def append_agpe_ans():
         d["SUBZONA"] = _safe_str(row.get("SUBZONA", "")).upper()
         d["TIPO_VISITA"] = _safe_str(row.get("TIPO_VISITA", ""))
         d["DETALLE_VISITA"] = _safe_str(row.get("DETALLE_VISITA", "")).upper()
+        if "1RA VISITA" in d["DETALLE_VISITA"]:
+            d["TIPO_VISITA"] = "C07"
         d["COORDENADAX"] = _safe_str(row.get("COORDENADAX", ""))
         d["COORDENADAY"] = _safe_str(row.get("COORDENADAY", ""))
         d["TIPO_MEDIDOR"] = _safe_str(row.get("TIPO_MEDIDOR", ""))
@@ -504,6 +506,7 @@ def append_agpe_ans():
     idx_fecha_limite = _find_col_index_by_header(ws_ans, "FECHA_LIMITE_ANS")
     idx_dias_rest = _find_col_index_by_header(ws_ans, "DIAS_RESTANTES")
     idx_estado = _find_col_index_by_header(ws_ans, "ESTADO_ANS")
+    idx_tipo_visita = _find_col_index_by_header(ws_ans, "TIPO_VISITA")
 
     if not all([idx_fecha_cambio, idx_detalle, idx_fecha_limite, idx_dias_rest, idx_estado]):
         wb_ans.close()
@@ -513,6 +516,15 @@ def append_agpe_ans():
     bd = CustomBusinessDay()
 
     for r in range(start_row, end_row + 1):
+
+        detalle = ws_ans.cell(r, idx_detalle).value
+
+        # 🔧 Regla: si DETALLE_VISITA es 1RA VISITA => TIPO_VISITA = C07
+        detalle_norm = _safe_str(detalle).upper()
+        if "1RA VISITA" in detalle_norm:
+            tipo_visita = "C07"
+            if idx_tipo_visita:
+                ws_ans.cell(r, idx_tipo_visita).value = "C07"
 
         # 🔒 NO TOCAR SI YA EXISTE VALOR (protección absoluta)
         if _safe_str(ws_ans.cell(r, idx_fecha_limite).value) != "":
@@ -529,6 +541,13 @@ def append_agpe_ans():
         except Exception:
             continue
 
+        # fallback solo si DETALLE no aplica
+        dias_ans = _dias_ans_por_detalle(detalle)
+        if dias_ans is None:
+            dias_ans = _dias_ans_por_tipo_visita(tipo_visita)
+        if dias_ans is None:
+            continue
+
         # ✅ NUEVA LÓGICA (SOLO AQUÍ)
         tipo_visita = ws_ans.cell(
             r,
@@ -537,13 +556,6 @@ def append_agpe_ans():
 
         # ✅ PRIORIDAD CORRECTA: DETALLE manda
         dias_ans = _dias_ans_por_detalle(detalle)
-
-        # fallback solo si DETALLE no aplica
-        dias_ans = _dias_ans_por_detalle(detalle)
-        if dias_ans is None:
-            dias_ans = _dias_ans_por_tipo_visita(tipo_visita)
-        if dias_ans is None:
-            continue
 
         fecha_limite = fecha_cambio + CustomBusinessDay(n=dias_ans)
         dias_restantes = (fecha_limite.date() - hoy).days
