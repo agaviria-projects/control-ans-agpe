@@ -20,6 +20,27 @@ def generar_mapa_leaflet_agpe():
     # --------------------------------------------------
     df = pd.read_excel(ruta_excel, dtype=str).fillna("")
 
+    # --------------------------------------------------
+    # NORMALIZAR COORDENADAS (coma -> punto)
+    # --------------------------------------------------
+    for c in ["COORDENADAY", "COORDENADAX"]:
+        df[c] = (
+            df[c]
+            .astype(str)
+            .str.strip()
+            .str.replace(",", ".", regex=False)
+        )
+
+    # Convertir a número real y eliminar inválidos
+    df["COORDENADAY"] = pd.to_numeric(df["COORDENADAY"], errors="coerce")
+    df["COORDENADAX"] = pd.to_numeric(df["COORDENADAX"], errors="coerce")
+
+    # Eliminar filas sin coordenadas válidas
+    df = df.dropna(subset=["COORDENADAY", "COORDENADAX"])
+
+    print("Pedidos totales:", len(df))
+    print("Coordenadas únicas:", df[["COORDENADAY","COORDENADAX"]].drop_duplicates().shape[0])
+    
     data_js = df[
         [
             "PEDIDO",
