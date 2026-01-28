@@ -233,6 +233,7 @@ function pintar(arr){{
             <b>Cliente:</b> ${{p.CLIENTE}}<br>
             <b>Municipio:</b> ${{p.MUNICIPIO}}<br>
             <b>Tipo visita:</b> ${{p.TIPO_VISITA}}<br>
+            <b>Observación:</b> ${{p.OBSERVACION || '-'}}<br>
             <b>Dirección:</b> ${{p.DIRECCION}}<br>
             <b>Coordenadas:</b> ${{p.COORDENADAY}}, ${{p.COORDENADAX}}<br><br>
         `;
@@ -243,6 +244,7 @@ function pintar(arr){{
         <b>Cliente:</b> ${{d.CLIENTE}}<br>
         <b>Municipio:</b> ${{d.MUNICIPIO}}<br>
         <b>Tipo visita:</b> ${{d.TIPO_VISITA}}<br>
+        <b>Observación:</b> ${{d.OBSERVACION}}<br>
         <b>Dirección:</b> ${{d.DIRECCION}}<br>
         <b>Celular:</b> ${{d.CELULAR}}<br>
         <b>Coordenadas:</b> ${{d.COORDENADAY}}, ${{d.COORDENADAX}}
