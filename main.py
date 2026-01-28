@@ -1,11 +1,8 @@
-from src.extract.consolidar_c09_c07 import consolidar_c09_c07
-
+from src.ui.panel_agpe import iniciar_panel
 
 def main():
-    print("🚀 Iniciando AGPE")
-    consolidar_c09_c07()
-    print("🏁 Proceso finalizado")
-
+    print("🚀 Iniciando AGPE (Panel)...")
+    iniciar_panel()
 
 if __name__ == "__main__":
     main()

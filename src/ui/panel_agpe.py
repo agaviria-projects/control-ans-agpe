@@ -2,12 +2,16 @@ import sys
 from pathlib import Path
 from datetime import datetime
 import os
-# --------------------------------------------------
-# Agregar proyecto al path (OBLIGATORIO PRIMERO)
-# --------------------------------------------------
-BASE_DIR = Path(__file__).resolve().parents[2]
-sys.path.append(str(BASE_DIR))
 
+from src.base_path import get_base_dir, get_resource_path
+
+APP_DIR = get_base_dir()
+
+# --------------------------------------------------
+# Agregar proyecto al path (compatibilidad)
+# --------------------------------------------------
+BASE_DIR = APP_DIR
+sys.path.append(str(BASE_DIR))
 # --------------------------------------------------
 # Imports estándar
 # --------------------------------------------------
@@ -150,8 +154,9 @@ lbl_hora.pack(side="right", padx=12)
 frame_identidad = tk.Frame(ventana, bg="#EAEDED")
 frame_identidad.pack(pady=(6, 8))  # 👈 OJO al pady
 
-ruta_logo = BASE_DIR / "assets" / "logo.png"
-logo_img = tk.PhotoImage(file=ruta_logo).subsample(2, 2)
+ruta_logo = get_resource_path("assets/logo.png")
+logo_img = tk.PhotoImage(file=str(ruta_logo)).subsample(2, 2)
+
 
 lbl_logo = tk.Label(
     frame_identidad,
@@ -242,20 +247,21 @@ frame_iconos.pack(fill="x", padx=12, pady=(2, 4), anchor="w")
 
 # Cargar imágenes (tamaño elegante tipo FENIX)
 icon_agpe_ans = tk.PhotoImage(
-    file=BASE_DIR / "assets" / "agpe_ans.png"
+    file=str(get_resource_path("assets/agpe_ans.png"))
 ).subsample(1, 1)
 
 icon_agpe_clean = tk.PhotoImage(
-    file=BASE_DIR / "assets" / "agpe_clean.png"
+    file=str(get_resource_path("assets/agpe_clean.png"))
 ).subsample(1, 1)
 
 icon_bdpcp = tk.PhotoImage(
-    file=BASE_DIR / "assets" / "BDPCP.png"
+    file=str(get_resource_path("assets/BDPCP.png"))
 ).subsample(1, 1)
 
 icon_primer = tk.PhotoImage(
-    file=BASE_DIR / "assets" / "primer_visita.png"
+    file=str(get_resource_path("assets/primer_visita.png"))
 ).subsample(1, 1)
+
 
 def crear_icono(parent, img, tooltip, archivo, pady=(4, 0)):
     lbl = tk.Label(
@@ -277,7 +283,7 @@ crear_icono(
     frame_iconos,
     icon_agpe_ans,
     "📄 Abrir AGPE_ANS",
-    BASE_DIR / "data_clean" / "AGPE_ANS.xlsm"
+    APP_DIR / "data_clean" / "AGPE_ANS.xlsm"
 )
 
 
@@ -285,23 +291,24 @@ crear_icono(
     frame_iconos,
     icon_agpe_clean,
     "🧹 Abrir AGPE_CLEAN",
-    BASE_DIR / "data_clean" / "AGPE_CLEAN.xlsx"
+    APP_DIR / "data_clean" / "AGPE_CLEAN.xlsx"
 )
 
 crear_icono(
     frame_iconos,
     icon_bdpcp,
     "🗄️ Abrir BDPCP",
-    BASE_DIR / "data_clean" / "BDPCP.xlsx"
+    APP_DIR / "data_clean" / "BDPCP.xlsx"
 )
 
 crear_icono(
     frame_iconos,
     icon_primer,
     "📝 Abrir Plantilla Primer Visita",
-    BASE_DIR / "data_clean" / "PLANTILLA_PRIMER VISITAS.xlsm",
+    APP_DIR / "data_clean" / "PLANTILLA_PRIMER VISITAS.xlsm",
     pady=(10, 0)
 )
+
 # --------------------------------------------------
 # Footer definitivo
 # --------------------------------------------------
@@ -341,5 +348,9 @@ tk.Label(
     font=("Segoe UI", 9, "italic")
 ).pack(side="right", padx=(0, 12))
 
-actualizar_hora()
-ventana.mainloop()
+def iniciar_panel():
+    actualizar_hora()
+    ventana.mainloop()
+
+if __name__ == "__main__":
+    iniciar_panel()    

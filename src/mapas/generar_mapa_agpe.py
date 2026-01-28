@@ -8,7 +8,8 @@ def generar_mapa_leaflet_agpe():
     # --------------------------------------------------
     # RUTAS
     # --------------------------------------------------
-    base_dir = Path(__file__).resolve().parents[2]
+    from src.base_path import get_base_dir
+    base_dir = get_base_dir()
     ruta_excel = base_dir / "data_clean" / "AGPE_ANS.xlsm"
     ruta_output = base_dir / "output"
     ruta_output.mkdir(exist_ok=True)
