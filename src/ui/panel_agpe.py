@@ -78,10 +78,10 @@ def ejecutar_mapa():
         generar_mapa_leaflet_agpe()
 
         lbl_estado.config(text="✅ Mapa AGPE generado correctamente")
-        messagebox.showinfo(
-            "Mapa de Geolocalización - AGPE",
-            "El mapa fue generado correctamente."
-        )
+        # messagebox.showinfo(
+        #     "Mapa de Geolocalización - AGPE",
+        #     "El mapa fue generado correctamente."
+        # )
 
     except Exception as e:
         lbl_estado.config(text="❌ Error generando el mapa")
